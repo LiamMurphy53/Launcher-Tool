@@ -4,10 +4,10 @@ let mode = 'bungee';
 let nextSetId = 1;
 
 const sliderConfig = {
-  mass: [100, 10000, 10], target: [0, 100, 0.5], length: [1, 300, 1],
-  brake: [1, 300, 1], angle: [-30, 30, 0.5], start: [0, 60, 0.5],
-  efficiency: [1, 100, 1], constantForce: [0, 200000, 1000],
-  thrust: [0, 100000, 500], rolling: [0, 0.2, 0.005],
+  mass: [1, 100, 0.5], brakeMass: [0.1, 30, 0.1], target: [0, 40, 0.1], length: [0.1, 4, 0.01],
+  brake: [0.1, 2, 0.01], angle: [-30, 30, 0.5], start: [0, 20, 0.1],
+  efficiency: [1, 100, 1], constantForce: [0, 10000, 100],
+  thrust: [0, 1000, 10], rolling: [0, 0.2, 0.005],
   cda: [0, 10, 0.1], density: [0, 1.5, 0.025]
 };
 
@@ -44,14 +44,13 @@ function enhanceSliders(scope) {
   });
 }
 
-function addBungeeSet(data = { count: 4, natural: 20, stretched: 45, stiffness: 500 }) {
+function addBungeeSet(data = { count: 3, natural: 3.048, stretched: 6.096 }) {
   const id = nextSetId++;
   const card = document.createElement('div');
   card.className = 'bungee-card';
   card.dataset.setId = id;
   card.innerHTML = `<div class="bungee-header"><span>Bungee set <span class="set-number"></span></span><button type="button" class="remove-set" aria-label="Remove bungee set">Remove</button></div>
-    <div class="row"><div class="field"><label for="count-${id}">Cord count</label><div class="unit"><input id="count-${id}" class="count" type="number" min="1" step="1" value="${data.count}" data-range="1,30,1"><span>cords</span></div></div>
-    <div class="field"><label for="stiffness-${id}">Stiffness per cord</label><div class="unit"><input id="stiffness-${id}" class="stiffness" type="number" min="0" step="any" value="${data.stiffness}" data-range="0,10000,50"><span>N/m</span></div></div></div>
+    <div class="field"><label for="count-${id}">Cord count</label><div class="unit"><input id="count-${id}" class="count" type="number" min="1" step="1" value="${data.count}" data-range="1,30,1"><span>cords</span></div></div>
     <div class="row"><div class="field"><label for="natural-${id}">Unstretched length</label><div class="unit"><input id="natural-${id}" class="natural" type="number" min="0" step="any" value="${data.natural}" data-range="0,100,0.5"><span>m</span></div></div>
     <div class="field"><label for="stretched-${id}">Stretched length</label><div class="unit"><input id="stretched-${id}" class="stretched" type="number" min="0" step="any" value="${data.stretched}" data-range="0,150,0.5"><span>m</span></div></div></div>`;
   $('bungee-list').append(card);
@@ -70,7 +69,6 @@ function renumberSets() {
 function bungeeSets() {
   return [...document.querySelectorAll('.bungee-card')].map(card => ({
     count: Number(card.querySelector('.count').value),
-    stiffness: Number(card.querySelector('.stiffness').value),
     natural: Number(card.querySelector('.natural').value),
     stretched: Number(card.querySelector('.stretched').value)
   }));
@@ -80,9 +78,20 @@ function val(id) { return Number($(id).value); }
 function fmt(n, d = 1) { return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { maximumFractionDigits: d }).format(n) : '—'; }
 function forceFmt(n) { return n >= 1000 ? `${fmt(n / 1000, 1)} kN` : `${fmt(n, 0)} N`; }
 function resist(v, p) { return p.mass * G * Math.sin(p.rad) + p.rolling * p.mass * G * Math.cos(p.rad) + 0.5 * p.density * p.cda * v * v; }
+const MIL = {
+  low: { f75: 50 * 4.448221615, f100: 90 * 4.448221615 },
+  mid: { f75: 75 * 4.448221615, f100: 120 * 4.448221615 },
+  high: { f75: 100 * 4.448221615, f100: 150 * 4.448221615 }
+};
+function cordForce(extensionRatio, forceCase) {
+  if (extensionRatio <= 0) return 0;
+  const spec = MIL[forceCase];
+  const exponent = Math.log(spec.f75 / spec.f100) / Math.log(0.75);
+  return spec.f100 * extensionRatio ** exponent;
+}
 function pull(x, p) {
   if (mode === 'constant') return p.constantForce;
-  return p.efficiency * p.sets.reduce((sum, set) => sum + set.count * set.stiffness * Math.max(0, set.stretched - set.natural - x), 0);
+  return p.efficiency * p.sets.reduce((sum, set) => sum + set.count * cordForce((set.stretched - set.natural - x) / set.natural, p.forceCase), 0);
 }
 
 function draw(points, length) {
@@ -106,26 +115,47 @@ function draw(points, length) {
   svg.setAttribute('aria-label', `Speed reaches ${fmt(points.at(-1).v, 1)} meters per second after ${fmt(points.at(-1).x, 1)} meters`);
 }
 
+function drawForce(p) {
+  const svg = $('force-chart');
+  const total = p.length + p.brake, L = 54, R = 18, T = 16, B = 28, H = 200, W = 760;
+  const maxForce = Math.max(1, pull(0, p)) * 1.1;
+  const x = d => L + (W - L - R) * d / total;
+  const y = f => T + (H - T - B) * (1 - f / maxForce);
+  let out = '';
+  for (let i = 0; i <= 3; i++) {
+    const force = maxForce * (1 - i / 3), yy = y(force);
+    out += `<line x1="${L}" y1="${yy}" x2="${W - R}" y2="${yy}" stroke="#294454"/><text x="${L - 7}" y="${yy + 4}" fill="#7895a6" font-size="11" text-anchor="end">${fmt(force / 1000, 1)}kN</text>`;
+  }
+  const curve = Array.from({ length: 251 }, (_, i) => {
+    const d = total * i / 250;
+    return `${i ? 'L' : 'M'}${x(d).toFixed(1)},${y(pull(d, p)).toFixed(1)}`;
+  }).join(' ');
+  out += `<path d="${curve}" fill="none" stroke="#65ded0" stroke-width="3"/>`;
+  out += `<line x1="${x(p.length)}" y1="${T}" x2="${x(p.length)}" y2="${H - B}" stroke="#f5aa74" stroke-dasharray="5 5"/><text x="${x(p.length) + 5}" y="${T + 13}" fill="#f5aa74" font-size="11">release</text>`;
+  out += `<text x="${L}" y="${H - 4}" fill="#7895a6" font-size="11">0 m</text><text x="${W - R}" y="${H - 4}" fill="#7895a6" font-size="11" text-anchor="end">${fmt(total, 2)} m</text>`;
+  svg.innerHTML = out;
+  svg.setAttribute('aria-label', `Bungee pull starts at ${forceFmt(pull(0, p))} and falls during the ${fmt(total, 2)} meter track`);
+}
+
 function calculate() {
   const p = {
-    mass: val('mass'), target: val('target'), length: val('length'), brake: val('brake'),
+    mass: val('mass'), brakeMass: val('brakeMass'), target: val('target'), length: val('length'), brake: val('brake'),
     rad: val('angle') * Math.PI / 180, start: val('start'), efficiency: val('efficiency') / 100,
     constantForce: val('constantForce'), thrust: val('thrust'), rolling: val('rolling'),
-    cda: val('cda'), density: val('density'), sets: bungeeSets()
+    cda: val('cda'), density: val('density'), forceCase: $('force-case').value, sets: bungeeSets()
   };
   $('target-alt').textContent = `${fmt(p.target * 2.23694, 1)} mph · ${fmt(p.target * 1.94384, 1)} kt`;
-  const basicInvalid = [p.mass, p.target, p.length, p.brake, p.rad, p.start, p.efficiency,
+  const basicInvalid = [p.mass, p.brakeMass, p.target, p.length, p.brake, p.rad, p.start, p.efficiency,
     p.constantForce, p.thrust, p.rolling, p.cda, p.density].some(n => !Number.isFinite(n)) ||
-    p.mass <= 0 || p.length <= 0 || p.brake <= 0 || p.target < 0 || p.start < 0 ||
+    p.mass <= 0 || p.brakeMass <= 0 || p.length <= 0 || p.brake <= 0 || p.target < 0 || p.start < 0 ||
     p.rolling < 0 || p.cda < 0 || p.density < 0 || p.thrust < 0 || p.constantForce < 0 ||
     p.efficiency <= 0 || p.efficiency > 1 || Math.abs(p.rad) > Math.PI / 4;
   const setInvalid = mode === 'bungee' && p.sets.some(s =>
-    ![s.count, s.stiffness, s.natural, s.stretched].every(Number.isFinite) ||
-    !Number.isInteger(s.count) || s.count < 1 || s.stiffness <= 0 ||
-    s.natural < 0 || s.stretched <= s.natural
+    ![s.count, s.natural, s.stretched].every(Number.isFinite) ||
+    !Number.isInteger(s.count) || s.count < 1 || s.natural <= 0 || s.stretched <= s.natural
   );
   if (basicInvalid || setInvalid) {
-    $('error').textContent = setInvalid ? 'Each set needs a whole cord count, positive stiffness, and stretched length greater than unstretched length.' : 'Check mass, lengths, angle (±45°), and force inputs.';
+    $('error').textContent = setInvalid ? 'Each set needs a whole cord count and stretched length greater than its positive unstretched length.' : 'Check masses, lengths, angle (±45°), and force inputs.';
     return;
   }
   $('error').textContent = '';
@@ -156,10 +186,10 @@ function calculate() {
   }
   const reached = !stopped && v >= p.target;
   const netBrake = v * v / (2 * p.brake);
-  const gravity = p.mass * G * Math.sin(p.rad);
-  const roll = p.rolling * p.mass * G * Math.cos(p.rad);
-  const avgDrag = 0.25 * p.density * p.cda * v * v;
-  const brakeDemand = Math.max(0, p.mass * netBrake - gravity - roll - avgDrag);
+  const gravity = p.brakeMass * G * Math.sin(p.rad);
+  const roll = p.rolling * p.brakeMass * G * Math.cos(p.rad);
+  const avgPull = mode === 'bungee' ? Array.from({ length: 100 }, (_, i) => pull(p.length + p.brake * (i + 0.5) / 100, p)).reduce((a, b) => a + b, 0) / 100 : 0;
+  const brakeDemand = Math.max(0, p.brakeMass * netBrake + avgPull - gravity - roll);
   const energy = 0.5 * p.mass * (v * v - p.start * p.start);
   $('speed').innerHTML = `${fmt(v, 1)} <span>m/s</span>`;
   $('speed-sub').textContent = `${fmt(v * 2.23694, 1)} mph · ${fmt(v * 1.94384, 1)} kt at ${fmt(x, 1)} m`;
@@ -171,22 +201,29 @@ function calculate() {
   $('launch-time').innerHTML = `${fmt(t, 2)} <span>s</span>`;
   $('brake-force').innerHTML = forceFmt(brakeDemand);
   $('brake-g').innerHTML = `${fmt(netBrake / G, 2)} <span>g</span>`;
-  $('energy').innerHTML = `${fmt(energy / 1e6, 2)} <span>MJ</span>`;
+  $('energy').innerHTML = `${fmt(energy / 1000, 2)} <span>kJ</span>`;
   draw(points, p.length);
+  $('force-panel').hidden = mode !== 'bungee';
+  if (mode === 'bungee') drawForce(p);
   const notes = [];
   if (stopped) notes.push('<p class="warning">Stopped on launch track.</p>');
   if (mode === 'bungee') {
     const cords = p.sets.reduce((sum, s) => sum + s.count, 0);
-    const stored = p.sets.reduce((sum, s) => sum + 0.5 * s.count * s.stiffness * (s.stretched - s.natural) ** 2, 0);
+    const spec = MIL[p.forceCase];
+    const exponent = Math.log(spec.f75 / spec.f100) / Math.log(0.75);
+    const stored = p.sets.reduce((sum, s) => sum + s.count * spec.f100 * s.natural * ((s.stretched - s.natural) / s.natural) ** (exponent + 1) / (exponent + 1), 0);
     const longestPull = Math.max(...p.sets.map(s => s.stretched - s.natural));
-    notes.push(`<p>${cords} cords in ${p.sets.length} set${p.sets.length === 1 ? '' : 's'} · stored energy ${fmt(stored / 1e6, 2)} MJ · effective initial pull ${forceFmt(pull(0, p))}.</p>`);
-    notes.push(`<p>All cords slack after ${fmt(longestPull, 1)} m of travel. Force efficiency applies to pull, not stored energy.</p>`);
+    const extrapolated = p.sets.some(s => s.stretched > 2 * s.natural);
+    notes.push(`<p>${cords} cords · initial pull ${forceFmt(pull(0, p))} · loading energy ${fmt(stored / 1000, 2)} kJ · slack after ${fmt(longestPull, 2)} m.</p>`);
+    notes.push(`<p>${p.forceCase} case: ${forceFmt(spec.f75)} at 75% stretch, ${forceFmt(spec.f100)} at 100%, per cord. Power-law fit between points; ${fmt(p.efficiency * 100, 0)}% unloading factor is assumed.</p>`);
+    if (extrapolated) notes.push('<p class="warning">Some cords start beyond 100% extension. Force there is extrapolated beyond the quoted points.</p>');
   }
-  notes.push(`<p>Braking: constant deceleration over ${fmt(p.brake, 1)} m; engine thrust off. g is longitudinal acceleration / 9.80665 m/s².</p>`);
+  notes.push(`<p>Braking: ${fmt(p.brakeMass, 1)} kg carriage over ${fmt(p.brake, 2)} m; engine thrust off. g is longitudinal acceleration / 9.80665 m/s².</p>`);
   $('details').innerHTML = notes.join('');
 }
 
-$('add-bungee').addEventListener('click', () => addBungeeSet({ count: 1, natural: 20, stretched: 45, stiffness: 500 }));
+$('add-bungee').addEventListener('click', () => addBungeeSet({ count: 1, natural: 3.048, stretched: 6.096 }));
+$('force-case').addEventListener('change', calculate);
 $('bungee-list').addEventListener('click', e => {
   if (!e.target.classList.contains('remove-set')) return;
   if (document.querySelectorAll('.bungee-card').length <= 1) return;

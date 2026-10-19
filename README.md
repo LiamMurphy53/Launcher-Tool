@@ -2,12 +2,10 @@
 
 [Open the calculator](https://aircraft-launch-calculator.rainy-charm-8688.chatgpt.site) or open `index.html` locally.
 
-Enter aircraft mass and thrust, target speed, launch and braking lengths, track angle, and rolling and aerodynamic resistance. Number fields have draggable sliders for quick changes.
+The default main cords are three ⅜-inch MIL-C-5651 Type I cords, each 10 ft unstretched and 20 ft at full draw. Add bungee sets with different cord counts and lengths. Sliders and number fields adjust the inputs.
 
-Add bungee sets with different cord counts, unstretched lengths, stretched lengths at launch, and stiffness per cord. Each set pulls until its extension reaches zero. The force model is:
+The force model fits a power law through the [MIL-C-5651D](https://www.milspecmonkey.com/materials/MIL-C-5651D%28shockcord%29.pdf) force ranges at 75% and 100% extension. Low, midpoint, and high cases use 50/90, 75/120, and 100/150 lbf at those two points, per cord. The force during contraction is multiplied by an adjustable unloading factor (85% default), which is an assumption until measured.
 
-`F(x) = efficiency × Σ[count × stiffness × max(0, stretched length − unstretched length − x)]`
+The model adds aircraft thrust during launch. At release, it switches to carriage mass for the braking calculation and includes remaining main-cord pull. It estimates exit speed, peak longitudinal g, launch pull, and required average brake force.
 
-Aircraft thrust is added during launch and set to zero for braking. The calculator integrates speed along the track and estimates peak longitudinal g, combined bungee pull, launch time, and braking demand.
-
-The model assumes 1:1 cord contraction with aircraft travel and linear springs. Verify actual cord behavior, release loads, aircraft structure, and brakes before design use.
+This is a preliminary approximation. Force below 75% extension, unloading hysteresis, end fittings, release transients, and brake behavior require testing. The simplified brake model assumes braking begins after plane release.
