@@ -1,25 +1,9 @@
 # Aircraft Launch Calculator
 
-An interactive, browser-only concept calculator for aircraft launcher sizing. Open `index.html` in a browser or visit the [private hosted version](https://aircraft-launch-calculator.rainy-charm-8688.chatgpt.site).
+[Open the calculator](https://aircraft-launch-calculator.rainy-charm-8688.chatgpt.site) or open `index.html` locally.
 
-## Inputs
+Inputs: aircraft mass and thrust, target speed, launch and braking lengths, track angle, bungee stiffness and stretch (or constant launch force), rolling resistance, and aerodynamic drag.
 
-- Aircraft mass, starting speed, target speed, launch length, braking length, and track incline
-- Bungee model: combined stiffness, initial stretch, and effective energy transfer percentage
-- Constant-force launcher as an alternative
-- Aircraft thrust, rolling resistance, aerodynamic drag area, and air density
+The bungee model uses `F = efficiency × stiffness × max(0, initial stretch − distance)`. Aircraft thrust is added during launch and set to zero for braking. The calculator integrates speed along the track and estimates peak longitudinal g, launcher pull, launch time, and braking demand.
 
-## Model
-
-The calculator steps along the launch track and updates speed using `v_next² = v² + 2 a Δx`. At each step:
-
-```text
-bungee pull = efficiency × stiffness × max(0, initial stretch − distance)
-net force   = launcher pull + aircraft thrust − gravity along track
-              − rolling resistance − aerodynamic drag
-drag        = ½ × air density × drag area × speed²
-```
-
-The constant-force option substitutes a fixed launcher pull. Results show predicted exit speed, target comparison, peak longitudinal acceleration, peak launcher pull, launch time, and change in kinetic energy. Braking uses the predicted exit speed and assumes constant deceleration across the entered braking distance; aircraft thrust is assumed off during braking.
-
-This is a concept estimate. A real bungee force curve, attachment geometry, release behavior, airframe loads, tires, and braking limits need separate validation before hardware design.
+Concept estimate only. Verify actual cord behavior, release loads, aircraft structure, and brakes before design use.
