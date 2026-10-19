@@ -94,30 +94,9 @@ function pull(x, p) {
   return p.efficiency * p.sets.reduce((sum, set) => sum + set.count * cordForce((set.stretched - set.natural - x) / set.natural, p.forceCase), 0);
 }
 
-function draw(points, length) {
-  const svg = $('chart'), W = 760, H = 270, L = 46, R = 20, T = 12, B = 35;
-  const plotW = W - L - R, plotH = H - T - B;
-  const maxV = Math.max(1, ...points.map(p => p.v)) * 1.08;
-  const maxA = Math.max(1, ...points.map(p => Math.abs(p.a))) * 1.12;
-  const x = p => L + plotW * p.x / length;
-  const yV = p => T + plotH * (1 - p.v / maxV);
-  const yA = p => T + plotH * (0.5 - p.a / (2 * maxA));
-  const path = fn => points.map((p, i) => `${i ? 'L' : 'M'}${x(p).toFixed(1)},${fn(p).toFixed(1)}`).join(' ');
-  let out = '';
-  for (let i = 0; i <= 4; i++) {
-    const y = T + i * plotH / 4;
-    out += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="#294454"/><text x="${L - 8}" y="${y + 4}" fill="#7895a6" font-size="11" text-anchor="end">${fmt(maxV * (1 - i / 4), 0)}</text>`;
-  }
-  out += `<text x="${L}" y="${H - 7}" fill="#7895a6" font-size="11">0 m</text><text x="${W - R}" y="${H - 7}" fill="#7895a6" font-size="11" text-anchor="end">${fmt(length, 0)} m</text>`;
-  out += `<line x1="${L}" y1="${T + plotH / 2}" x2="${W - R}" y2="${T + plotH / 2}" stroke="#8a765f" stroke-dasharray="4 5"/>`;
-  out += `<path d="${path(yV)}" fill="none" stroke="#65ded0" stroke-width="3"/><path d="${path(yA)}" fill="none" stroke="#f5aa74" stroke-width="2.5"/>`;
-  svg.innerHTML = out;
-  svg.setAttribute('aria-label', `Speed reaches ${fmt(points.at(-1).v, 1)} meters per second after ${fmt(points.at(-1).x, 1)} meters`);
-}
-
 function drawForce(p) {
   const svg = $('force-chart');
-  const total = p.length + p.brake, L = 54, R = 18, T = 16, B = 28, H = 200, W = 760;
+  const total = p.length, L = 54, R = 18, T = 16, B = 28, H = 200, W = 760;
   const maxForce = Math.max(1, pull(0, p)) * 1.1;
   const x = d => L + (W - L - R) * d / total;
   const y = f => T + (H - T - B) * (1 - f / maxForce);
@@ -131,10 +110,9 @@ function drawForce(p) {
     return `${i ? 'L' : 'M'}${x(d).toFixed(1)},${y(pull(d, p)).toFixed(1)}`;
   }).join(' ');
   out += `<path d="${curve}" fill="none" stroke="#65ded0" stroke-width="3"/>`;
-  out += `<line x1="${x(p.length)}" y1="${T}" x2="${x(p.length)}" y2="${H - B}" stroke="#f5aa74" stroke-dasharray="5 5"/><text x="${x(p.length) + 5}" y="${T + 13}" fill="#f5aa74" font-size="11">release</text>`;
-  out += `<text x="${L}" y="${H - 4}" fill="#7895a6" font-size="11">0 m</text><text x="${W - R}" y="${H - 4}" fill="#7895a6" font-size="11" text-anchor="end">${fmt(total, 2)} m</text>`;
+  out += `<text x="${L}" y="${H - 4}" fill="#7895a6" font-size="11">0 m</text><text x="${x(total / 2)}" y="${H - 4}" fill="#7895a6" font-size="11" text-anchor="middle">${fmt(total / 2, 2)} m</text><text x="${W - R}" y="${H - 4}" fill="#7895a6" font-size="11" text-anchor="end">${fmt(total, 2)} m · release</text>`;
   svg.innerHTML = out;
-  svg.setAttribute('aria-label', `Bungee pull starts at ${forceFmt(pull(0, p))} and falls during the ${fmt(total, 2)} meter track`);
+  svg.setAttribute('aria-label', `Bungee force starts at ${forceFmt(pull(0, p))} and changes over ${fmt(total, 2)} meters of launch travel`);
 }
 
 function calculate() {
@@ -163,7 +141,6 @@ function calculate() {
   let v = p.start, x = 0, t = 0, stopped = false;
   let peakA = (pull(0, p) + p.thrust - resist(v, p)) / p.mass;
   let peakPull = pull(0, p);
-  const points = [{ x: 0, v, a: peakA }];
   for (let i = 0; i < N; i++) {
     const f = pull(x + dx / 2, p);
     const a = (f + p.thrust - resist(v, p)) / p.mass;
@@ -175,14 +152,12 @@ function calculate() {
       t += a < 0 && v > 0 ? v / (-a) : 0;
       v = 0;
       stopped = true;
-      points.push({ x, v, a });
       break;
     }
     const next = Math.sqrt(next2);
     t += 2 * dx / (v + next);
     x += dx;
     v = next;
-    points.push({ x, v, a });
   }
   const reached = !stopped && v >= p.target;
   const netBrake = v * v / (2 * p.brake);
@@ -202,7 +177,6 @@ function calculate() {
   $('brake-force').innerHTML = forceFmt(brakeDemand);
   $('brake-g').innerHTML = `${fmt(netBrake / G, 2)} <span>g</span>`;
   $('energy').innerHTML = `${fmt(energy / 1000, 2)} <span>kJ</span>`;
-  draw(points, p.length);
   $('force-panel').hidden = mode !== 'bungee';
   if (mode === 'bungee') drawForce(p);
   const notes = [];

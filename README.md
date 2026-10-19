@@ -8,4 +8,6 @@ The force model fits a power law through the [MIL-C-5651D](https://www.milspecmo
 
 The model adds aircraft thrust during launch. At release, it switches to carriage mass for the braking calculation and includes remaining main-cord pull. It estimates exit speed, peak longitudinal g, launch pull, and required average brake force.
 
+The chart shows combined bungee force from launch start to plane release.
+
 This is a preliminary approximation. Force below 75% extension, unloading hysteresis, end fittings, release transients, and brake behavior require testing. The simplified brake model assumes braking begins after plane release.
