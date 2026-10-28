@@ -1,13 +1,21 @@
 # Aircraft Launch Calculator
 
-[Open the calculator](https://aircraft-launch-calculator.rainy-charm-8688.chatgpt.site) or open `index.html` locally.
+Bungee launcher calculator for the CU Boulder SuperSpeed RC aircraft launcher. Static `index.html` + `app.js`; open `index.html` in a browser. Live copy: https://claude.ai/artifact/2UZhethwie3g8Roi6qgTU5
 
-The default main cords are three ⅜-inch MIL-C-5651 Type I cords, each 10 ft unstretched and 20 ft at full draw. Add bungee sets with different cord counts and lengths. Sliders and number fields adjust the inputs.
+## Default setup
+CUSS1 15FT QUAD: 9.5 kg plane, 2.5 kg carriage, 18 m/s target, 164 in total travel, 8° incline, 91 N thrust, rolling μ 0.20, CdA 0, 1.225 kg/m³. Launch: 4 × ¼″ MIL-C-5651 Type I, 295 in unstretched, 720 in loaded. Braking: 4 × ¼″ Type I, 16 in unstretched, stretch begins at 122 in. Midpoint force case, 100% unloading factor. Minimum rail left at stop: 6 in.
 
-The force model fits a power law through the [MIL-C-5651D](https://www.milspecmonkey.com/materials/MIL-C-5651D%28shockcord%29.pdf) force ranges at 75% and 100% extension. Low, midpoint, and high cases use 50/90, 75/120, and 100/150 lbf at those two points, per cord. The default unloading factor is 100%, reproducing the specification midpoint of approximately 1.60 kN for three cords at full draw. Lower it to explore possible unloading losses; the actual unloading curve still needs measurement.
+All lengths are inches. "Loaded length" is total cord length at the start, not added stretch. Saved configurations live in the viewer's browser only (localStorage `aircraft-launch-calculator-configs-v7`).
 
-The model adds aircraft thrust during launch. At release, it switches to carriage mass for the braking calculation and includes remaining main-cord pull. It estimates exit speed, peak longitudinal g, launch pull, and required average brake force.
+## Force model
+Per cord, a power law through the MIL-C-5651D force points at 75% and 100% extension:
+p = ln(F75/F100) / ln(0.75), F(e) = F100 · e^p.
+Counts multiply force; the unloading factor multiplies total launch pull. The cord path is assumed to shorten 1 in per 1 in of carriage travel.
 
-The chart shows combined bungee force from launch start to plane release.
+## Simulation
+- Launch: 1,000 distance steps; launch pull + thrust − brake pull − incline − rolling − drag on combined mass.
+- Release: first point where loaded-carriage acceleration reaches zero.
+- After release: carriage only, thrust off, 500 steps. First stop and rebound/settling estimated; settled position marked on the speed plot.
 
-This is a preliminary approximation. Force below 75% extension, unloading hysteresis, end fittings, release transients, and brake behavior require testing. The simplified brake model assumes braking begins after plane release.
+## Limits
+Spec force points are not measured loading/unloading curves; below 75% and above 100% the fit is extrapolated. Low/high cases are not guaranteed bounds. Rebound uses the same curves both ways with rolling friction only. No cord mass, waves, rate or temperature effects, pulley losses, unequal sharing, or end-fitting slip. G values are longitudinal only. Deceleration-triggered release needs validation against the actual hook mechanism.
